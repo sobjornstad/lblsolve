@@ -5,10 +5,25 @@ from copy import deepcopy
 import logging
 import random
 from typing import List, Iterable
+import sys
+import time
 
 suits = ('♣', '♦', '♥', '♠')
 nums = list(range(1,14))
 names = ['A'] + [str(i) for i in range(2, 11)] + ['J', 'Q', 'K']
+
+MERCI_TO_FOUNDATION_FAN = -1
+
+
+class Stopwatch:
+    def __init__(self):
+        self.running_time = 0
+        self.mark = time.time()
+
+    def checkpoint(self):
+        stopped = time.time()
+        self.running_time += stopped - self.mark
+        self.mark = stopped
 
 
 class Card:
@@ -54,7 +69,7 @@ class Card:
     def __eq__(self, other):
         return self.suitEq(other) and self.numEq(other)
     def __ne__(self, other):
-        return not __eq__(other)
+        return not self.__eq__(other)
 
     def pp(self):
         return "%s%s" % (names[self._num - 1], self._suit)
@@ -126,6 +141,9 @@ class Fan:
     def __contains__(self, item: Card) -> None:
         return item in self.cards
 
+    def __getitem__(self, index) -> 'Fan':
+        return self.cards[index]
+
     def __len__(self):
         return len(self.cards)
 
@@ -133,10 +151,14 @@ class Fan:
         assert self.cards  # invalid to call an empty fan
         return self.cards[-1]
 
-    def pop(self) -> Card:
-        return self.cards.pop()
+    def pop(self, card=None) -> Card:
+        if card:
+            return self.cards.pop(self.cards.index(card))
+        else:
+            return self.cards.pop()
 
     def can_push(self, card) -> bool:
+        #print(f"can_push {card} {self}")
         if not self:
             # We can never build on an empty fan.
             return False
@@ -150,7 +172,7 @@ class Fan:
                          for c in self.cards)
 
     def push(self, card) -> None:
-        assert self.can_push(card)
+        assert self.can_push(card), f"{card} {card.after()} {self.top()} {self}"
         self.cards.append(card)
 
     def is_hard_blocked(self) -> bool:
@@ -262,12 +284,28 @@ class Tableau:
     def movable_cards(self) -> Iterable[Fan]:
         return (i.top() for i in self.fans)
 
-    def moves(self):
+    def immovable_cards(self) -> Iterable[Fan]:
+        for fan in self.fans:
+            for card in fan[:-1]:
+                yield card
+
+    def moves(self, merci=False, foundation=None):
         legal_moves = []
         for card in self.movable_cards():
             for idx, target_fan in enumerate(self.fans):
                 if target_fan.can_push(card):
-                    legal_moves.append((card, idx))
+                    legal_moves.append((card, idx, False))
+
+        if merci:
+            assert foundation is not None  # only required for merci moves
+            for card in self.immovable_cards():
+                if foundation.can_insert(card):
+                    legal_moves.append((card, MERCI_TO_FOUNDATION_FAN, True))
+
+                for idx, target_fan in enumerate(self.fans):
+                    if target_fan.can_push(card):
+                        legal_moves.append((card, idx, True))
+
         return legal_moves
 
     def move_players(self, found: Foundations, move_stack: List) -> bool:
@@ -328,7 +366,7 @@ def run_automatic_actions(tableau, foundation, move_stack) -> None:
         pass
 
 
-def recursive_hypothetical(tableau, foundation, move_stack, reclvl=0) -> None:
+def recursive_hypothetical(tableau, foundation, move_stack, merci=False, reclvl=0) -> None:
     """
     Perform a complete tree search for the best possible series of blocking
     moves. Between each blocking move, all automatic moves are applied. The
@@ -338,41 +376,55 @@ def recursive_hypothetical(tableau, foundation, move_stack, reclvl=0) -> None:
     we reach that end state anyway.)
     """
     global tot_searches
+    if tot_searches == 0 or not tot_searches % 100:
+        print(f"\rDFS for best blocking moves: {tot_searches} legal permutations...", end='')
     tot_searches += 1
-    print(f"\rDFS for best blocking moves: {tot_searches} legal permutations...", end='')
-    legal_moves = tableau.moves()
 
-    # Base case: There are no legal moves in this state. Return the number of
+    if merci:
+        legal_moves = tableau.moves(merci, foundation)
+    else:
+        legal_moves = tableau.moves()
+
+    # Base case: There are no legal moves in this state. This can happen either
+    # because we are blocked or because we have won. Return the number of
     # cards on the foundation.
-    if not legal_moves:
+    if not legal_moves or not tableau:
         #print(" " * 2 * reclvl + f"No legal moves at level {reclvl}.")
         return len(foundation), (tableau, foundation, move_stack)
 
     # Recursive case: find the sequence of moves following on from this one.
     best_foundation = 0
     best_state = None
-    for card, target_fan_index in legal_moves:
+    for card, target_fan_index, is_merci in legal_moves:
         # Take a copy of the tableau and foundation.
         t = deepcopy(tableau)
         f = deepcopy(foundation)
         ms = deepcopy(move_stack)
 
-        # Log move.
-        ms.append(f"[Blocking move  ] {card} => {tableau.fan(target_fan_index)}")
-
         # For each candidate move, make the move and run any follow-on
         # automatic actions.
         cur_fan = t.fan_of(card)
         assert cur_fan is not None
-        assert cur_fan.top() == card  # the card is on top -- or it wouldn't be a legal move
-        cur_fan.pop()
-        t.fan(target_fan_index).push(card)
+        if target_fan_index == MERCI_TO_FOUNDATION_FAN:
+            ms.append(f"[Merci          ] {card} => foundation")
+            merci = False  # only one merci is allowed during the tree
+            cur_fan.pop(card)
+            f.insert(card)
+        else:
+            if is_merci:
+                ms.append(f"[Merci          ] {card} => {tableau.fan(target_fan_index)}")
+                merci = False  # only one merci is allowed during the tree
+            else:
+                assert cur_fan.top() == card  # the card is on top, or it wouldn't be a legal move
+                ms.append(f"[Blocking move  ] {card} => {tableau.fan(target_fan_index)}")
+            cur_fan.pop(card)
+            t.fan(target_fan_index).push(card)
         run_automatic_actions(t, f, ms)
 
-        # And recursively repeat this process, recording the best state of any
+        # Recurse into child states, recording the best state of any
         # of this state's children.
         #print(" " * 2 * reclvl + f"Foundation size after this move: {len(foundation)}")
-        child_foundation, child_state = recursive_hypothetical(t, f, ms, reclvl+1)
+        child_foundation, child_state = recursive_hypothetical(t, f, ms, merci, reclvl+1)
         if child_foundation > best_foundation:
             best_foundation = child_foundation
             best_state = child_state
@@ -381,7 +433,15 @@ def recursive_hypothetical(tableau, foundation, move_stack, reclvl=0) -> None:
     return best_foundation, best_state
 
 
-def play_deal(tableau, found, deal):
+def check_won(foundation, deals, watch) -> None:
+    if len(foundation) == 52:
+        print("")
+        watch.checkpoint()
+        print(f"Game solved in {watch.running_time * 1000:.2f}ms using {deals} deal(s).")
+        sys.exit(0)
+
+
+def play_deal(tableau, found, deal, merci=False):
     print("")
     print(f"Starting tableau for deal {deal}:")
     print(tableau)
@@ -394,7 +454,8 @@ def play_deal(tableau, found, deal):
 
     move_stack = []
     run_automatic_actions(tableau, found, move_stack)
-    _, state = recursive_hypothetical(tableau, found, move_stack)
+    _, state = recursive_hypothetical(tableau, found, move_stack, merci)
+    print(f"\rDFS for best blocking moves: {tot_searches} legal permutations...", end='')
     if state is None:
         pass  # there were no legal moves at all
     else:
@@ -435,26 +496,35 @@ def play_game():
     deck = Deck()
     tableau = Tableau()
     found = Foundations()
+    watch = Stopwatch()
 
     # first deal: fill deck with 52 cards
     deck.fill()
     deck.shuffle()
     tableau.deal(deck)
     tableau, found = play_deal(tableau, found, 1)
+    check_won(found, 1, watch)
 
     # second deal: fill deck with tableau contents
     assert not deck
     deck.add_many(tableau.gather())
     deck.shuffle()
     tableau.deal(deck)
-    play_deal(tableau, found, 2)
+    tableau, found = play_deal(tableau, found, 2)
+    check_won(found, 2, watch)
 
-    # third deal: fill deck with tableau contents
+    # third deal: fill deck with tableau contents and allow merci
     assert not deck
     deck.add_many(tableau.gather())
     deck.shuffle()
     tableau.deal(deck)
-    play_deal(tableau, found, 3)
+    tableau, found = play_deal(tableau, found, 3, merci=True)
+    check_won(found, 3, watch)
+
+    print("")
+    watch.checkpoint()
+    print(f"Solution space exhausted in {watch.running_time * 1000:.2f}ms.")
+    print("Unfortunately, this game was not solvable.")
 
 
 play_game()
