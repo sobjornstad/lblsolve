@@ -1,16 +1,68 @@
 from copy import deepcopy
+from typing import List
 
-from lucie import MERCI_TO_FOUNDATION_FAN
+from lucie import Tableau, Foundations, MERCI_TO_FOUNDATION_FAN
+
+
+def move_players(tableau: Tableau, found: Foundations, move_stack: List) -> bool:
+    """
+    Scan all fans and move all possible cards to the foundations. Repeat
+    until a complete scan of all fans has been made and no plays were
+    possible.
+    """
+    function_success = False
+    any_success = True  # to pass the loop the first time
+    while any_success:
+        any_success = False
+        for fan in tableau.fans:
+            while fan and found.insert(fan.top()):
+                move_stack.append(f"[Foundation move] {fan.top()}")
+                function_success = any_success = True
+                fan.pop()
+        tableau.teardown_empty_fans()
+    return function_success
+
+
+def safe_builds(tableau, move_stack: List) -> bool:
+    """
+    Scan all fans and perform all safe builds. Repeat until a complete
+    scan of all fans has been made and no plays were possible.
+
+    TODO: Probably we should do foundation moves after *each* safe build?
+    Either that or we need to prove that this can't yield a wrong result
+    (building on top of a card that was playable on the foundation).
+    And e.g., this is a little silly:
+
+    [Safe build     ] A♣ => 7♠  5♦  3♣  2♣
+    """
+    function_success = False
+    any_success = True  # to pass the loop the first time
+    while any_success:
+        any_success = False
+        break_out = False
+        for target_fan in tableau.fans:
+            for source_fan in tableau.fans:
+                if target_fan.safe_build(source_fan.top()):
+                    move_stack.append(f"[Safe build     ] {source_fan.top()} => {target_fan}")
+                    target_fan.push(source_fan.pop())
+                    function_success = any_success = True
+                    if not source_fan:
+                        break_out = True
+                        break  # must tear down empty fans now
+            if break_out:
+                break
+        tableau.teardown_empty_fans()
+    return function_success
 
 def run_automatic_actions(tableau, foundation, move_stack) -> None:
     """
     Perform all actions that are always safe.
     """
-    while tableau.move_players(foundation, move_stack) or tableau.safe_builds(move_stack):
+    while move_players(tableau, foundation, move_stack) or safe_builds(tableau, move_stack):
         pass
 
 
-def recursive_hypothetical(tableau, foundation, move_stack, merci=False, reclvl=0) -> None:
+def recursive_hypothetical(tableau, foundation, move_stack, merci=False, reclvl=0):
     """
     Perform a complete tree search for the best possible series of blocking
     moves. Between each blocking move, all automatic moves are applied. The

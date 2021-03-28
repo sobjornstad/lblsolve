@@ -1,46 +1,86 @@
-from typing import List, Iterable
+from typing import Dict, List, Iterable, Iterator, Optional
 
-from card import Card
+from card import Card, Deck
 
 
 MERCI_TO_FOUNDATION_FAN = -1
 
 
 class Fan:
+    """
+    The tableau of La Belle Lucie is composed of a series of fans, which deal
+    out containing three cards but may in theory contain anywhere from zero
+    to fifteen cards (if a king was on top of the three dealt cards and you
+    built an additional twelve down in suit from there).
+
+    Ordinarily, you may work only with the top card. A card that is the same
+    suit and comes before the top card may be built onto the fan, and the top
+    card may be removed and built onto another fan in this way, or placed on
+    a foundation pile if it comes after that card.
+
+    During the third deal, many rulesets allow a /merci/, in which a single
+    blocked (not on top) card may be removed from any fan and placed on an
+    existing fan or foundation pile.
+
+    If a fan becomes empty, no more interactions with it are possible and it
+    becomes boolean false. Users of the fan are expected to check this after
+    removing cards and delete their references to the fan if it has become
+    empty.
+    """
     def __init__(self, cards: List[Card]) -> None:
-        assert len(cards) <= 3
+        """
+        Deal a new fan from a list of cards. No more than three cards may be
+        dealt into a fan, so an AssertionError is raised if more are provided
+        to the constructor.
+        """
+        assert len(cards) <= 3, "No more than three cards may be dealt into a fan."
         self.cards = cards
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Card]:
         for i in self.cards:
             yield i
 
     def __repr__(self) -> str:
         return '  '.join(repr(c) for c in self.cards)
 
-    def __bool__(self):
+    def __bool__(self) -> bool:
         return bool(self.cards)
 
-    def __contains__(self, item: Card) -> None:
+    def __contains__(self, item: Card) -> bool:
         return item in self.cards
 
     def __getitem__(self, index) -> 'Fan':
         return self.cards[index]
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.cards)
 
-    def top(self):
-        assert self.cards  # invalid to call an empty fan
+    def pprint(self):
+        "Pretty-print this fan with spacing, to be used in a tableau print."
+        return '  '.join(('' if len(repr(c)) > 2 else ' ') + repr(c)
+                         for c in self.cards)
+
+    def top(self) -> Card:
+        "Glimpse the top item of the fan in place."
+        assert self.cards, "Calling top() on an empty fan is invalid."
         return self.cards[-1]
 
-    def pop(self, card=None) -> Card:
+    def pop(self, card: Card = None) -> Card:
+        """
+        Remove and return the top item from the fan, or alternatively if a
+        Card object is provided, that card. In the latter case, the caller
+        must ensure the specified card actually exists in the fan.
+        """
         if card:
             return self.cards.pop(self.cards.index(card))
         else:
             return self.cards.pop()
 
-    def can_push(self, card) -> bool:
+    def can_push(self, card: Card) -> bool:
+        """
+        A card can be pushed onto this fan if it comes just before the
+        current top item.
+        """
         if not self:
             # We can never build on an empty fan.
             return False
@@ -49,34 +89,51 @@ class Fan:
             return False
         return self.top() == card.after()
 
-    def pprint(self):
-        return '  '.join(('' if len(repr(c)) > 2 else ' ') + repr(c)
-                         for c in self.cards)
-
-    def push(self, card) -> None:
+    def push(self, card: Card) -> None:
+        """
+        Push a card onto this fan. The caller should LBYL and ensure the card
+        is pushable.
+        """
         assert self.can_push(card), f"{card} {card.after()} {self.top()} {self}"
         self.cards.append(card)
 
-    def safe_build(self, card) -> bool:
+    def safe_build(self, card: Card) -> bool:
+        """
+        A card may be *safely built* on a fan if doing so does not remove any
+        possible moves from the move tree. In general, this occurs when a
+        card or series of cards that cannot be moved together sits on top of
+        the fan, or when no cards are blocked by the fan (e.g., there's only one
+        card).
+
+        Because safe builds will never make the situation worse, a human or
+        computer solver may evaluate and perform all safe builds after every
+        potential blocking move, along with all foundation builds.
+        """
         if not self.can_push(card):
             # We can't safely build if we can't build at all.
             return False
-        if len(self) == 1:
-            # We can safely build if there is only one card.
+        elif len(self) == 1:
+            # We can safely build if there is only one card (there's nothing to block).
             return True
-        if self.cards[-1].num == 13:
-            # We can safely build if the top card is a king.
+        elif self.cards[-1].num == 13:
+            # We can safely build if the top card is a king
+            # (it can only be moved onto foundation anyway).
             return True
-        if self.cards[-1].after() == self.cards[-2]:
-            # We can safely build if a descending run sits atop the stack.
+        elif self.cards[-1].after() == self.cards[-2]:
+            # We can safely build if a descending run sits atop the stack
+            # (the stack can only be moved onto foundation anyway).
             return True
-        
-        return False
+        else:
+            return False
 
 
 class Foundations:
+    """
+    The Foundations are a set of stacks built up from ace to king. You win the game
+    by moving all cards on the tableau onto such stacks.
+    """
     def __init__(self):
-        self.founds = {}
+        self.founds: Dict[List[Card]] = {}
 
     def __repr__(self) -> str:
         result = []
@@ -88,6 +145,12 @@ class Foundations:
         return sum(len(v) for v in self.founds.values())
 
     def can_insert(self, card: Card) -> bool:
+        """
+        A card can be inserted into the foundations if either:
+
+        * It is an ace (aces start new foundation piles when moved).
+        * One of the foundation piles contains the card immediately before it.
+        """
         if card.suit not in self.founds and card.num == 1:
             return True
         elif card.suit in self.founds and self.founds[card.suit][-1] == card.before():
@@ -96,6 +159,10 @@ class Foundations:
             return False
     
     def insert(self, card: Card) -> bool:
+        """
+        Try to insert a card into the foundations. Return True if successful,
+        False if it was not possible to insert.
+        """
         if not self.can_insert(card):
             return False
         if card.suit not in self.founds:
@@ -106,6 +173,10 @@ class Foundations:
 
 
 class Tableau:
+    """
+    The tableau for La Belle Lucie consists of a series of Fans. See that class
+    for details on the allowable moves, etc.
+    """
     def __init__(self):
         self.fans: List[Fan] = []
 
@@ -122,7 +193,11 @@ class Tableau:
         # Remove any fans that no longer contain any cards.
         self.fans = [i for i in self.fans if i]
 
-    def deal(self, deck):
+    def deal(self, deck: Deck) -> None:
+        """
+        Deal the contents of a Deck onto the tableau, creating fans of three cards
+        (with three, two, or one in the final fan, depending on parity).
+        """
         while deck:
             next_fan_cards = []
             for _ in range(3):
@@ -130,10 +205,15 @@ class Tableau:
                     next_fan_cards.append(deck.draw())
             self.fans.append(Fan(next_fan_cards))
 
-    def fan(self, index) -> Fan:
+    def fan(self, index: int) -> Fan:
+        "Return the Fan at the specified index."
         return self.fans[index]
 
-    def fan_of(self, card):
+    def fan_of(self, card: Card) -> Optional[Fan]:
+        """
+        Find and return the Fan that contains the specified Card,
+        or None in the card isn't in the tableau.
+        """
         for fan in self.fans:
             if card in fan:
                 return fan
@@ -141,21 +221,35 @@ class Tableau:
 
     def gather(self) -> List[Card]:
         """
-        Remove and return all cards from the tableau. Order is undefined.
+        Remove and return all cards from the tableau, typically used when
+        redealing. The resulting order is undefined.
         """
         L = [i for fan in self.fans for i in fan]
         self.fans.clear()
         return L
 
-    def movable_cards(self) -> Iterable[Fan]:
+    def movable_cards(self) -> Iterable[Card]:
+        "Iterate over the cards in the tableau that can currently be manipulated."
         return (i.top() for i in self.fans)
 
-    def immovable_cards(self) -> Iterable[Fan]:
+    def immovable_cards(self) -> Iterable[Card]:
+        "Iterate over the cards in the tableau that *cannot* currently be manipulated."
         for fan in self.fans:
             for card in fan[:-1]:
                 yield card
 
-    def moves(self, merci=False, foundation=None):
+    def moves(self, merci: bool = False, foundation: Foundations = None):
+        """
+        Return a list of all legal moves on the current tableau.
+
+        If /merci/ is set, mercis (moves of immovable cards to another
+        location on the tableau or to the foundation) will be included in the
+        list. If /merci/ is unset, moves to the foundation are not included
+        in this list and the foundation parameter is ignored entirely, as it
+        is assumed that you have already completed all foundation moves and
+        safe builds prior to using this method to search for good blocking
+        moves.
+        """
         legal_moves = []
         for card in self.movable_cards():
             for idx, target_fan in enumerate(self.fans):
@@ -173,53 +267,3 @@ class Tableau:
                         legal_moves.append((card, idx, True))
 
         return legal_moves
-
-    def move_players(self, found: Foundations, move_stack: List) -> bool:
-        """
-        Scan all fans and move all possible cards to the foundations. Repeat
-        until a complete scan of all fans has been made and no plays were
-        possible.
-        """
-        function_success = False
-        any_success = True  # to pass the loop the first time
-        while any_success:
-            any_success = False
-            for fan in self.fans:
-                while fan and found.insert(fan.top()):
-                    move_stack.append(f"[Foundation move] {fan.top()}")
-                    function_success = any_success = True
-                    fan.pop()
-            self.teardown_empty_fans()
-        return function_success
-
-    def safe_builds(self, move_stack: List) -> None:
-        """
-        Scan all fans and perform all safe builds. Repeat until a complete
-        scan of all fans has been made and no plays were possible.
-
-        TODO: Probably we should do foundation moves after *each* safe build?
-        Either that or we need to prove that this can't yield a wrong result
-        (building on top of a card that was playable on the foundation).
-        And e.g., this is a little silly:
-
-        [Safe build     ] A♣ => 7♠  5♦  3♣  2♣
-        """
-        function_success = False
-        any_success = True  # to pass the loop the first time
-        while any_success:
-            any_success = False
-            break_out = False
-            for target_fan in self.fans:
-                for source_fan in self.fans:
-                    if target_fan.safe_build(source_fan.top()):
-                        move_stack.append(f"[Safe build     ] {source_fan.top()} => {target_fan}")
-                        target_fan.push(source_fan.pop())
-                        function_success = any_success = True
-                        if not source_fan:
-                            break_out = True
-                            break  # must tear down empty fans now
-                if break_out:
-                    break
-            self.teardown_empty_fans()
-        return function_success
-
