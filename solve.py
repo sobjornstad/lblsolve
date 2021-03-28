@@ -1,7 +1,7 @@
 from copy import deepcopy
 from typing import List
 
-from lucie import Tableau, Foundations, MERCI_TO_FOUNDATION_FAN
+from lucie import Tableau, Foundations, MERCI_TO_FOUNDATION_FAN, Move
 
 
 def move_players(tableau: Tableau, found: Foundations, move_stack: List) -> bool:
@@ -16,7 +16,7 @@ def move_players(tableau: Tableau, found: Foundations, move_stack: List) -> bool
         any_success = False
         for fan in tableau.fans:
             while fan and found.insert(fan.top()):
-                move_stack.append(f"[Foundation move] {fan.top()}")
+                move_stack.append(Move(fan.top()))
                 function_success = any_success = True
                 fan.pop()
         tableau.teardown_empty_fans()
@@ -29,30 +29,26 @@ def safe_builds(tableau, move_stack: List) -> bool:
     scan of all fans has been made and no plays were possible.
 
     TODO: Probably we should do foundation moves after *each* safe build?
-    Either that or we need to prove that this can't yield a wrong result
-    (building on top of a card that was playable on the foundation).
-    And e.g., this is a little silly:
-
-    [Safe build     ] A♣ => 7♠  5♦  3♣  2♣
+    e.g., this is a little silly: [Safe build     ] A♣ => 7♠  5♦  3♣  2♣
     """
     function_success = False
     any_success = True  # to pass the loop the first time
     while any_success:
         any_success = False
         break_out = False
-        for target_fan in tableau.fans:
+        for t_idx, target_fan in enumerate(tableau.fans):
             for source_fan in tableau.fans:
                 if target_fan.safe_build(source_fan.top()):
-                    move_stack.append(f"[Safe build     ] {source_fan.top()} => {target_fan}")
+                    move_stack.append(Move(source_fan.top(), target_fan, t_idx, is_safe=True))
                     target_fan.push(source_fan.pop())
                     function_success = any_success = True
-                    if not source_fan:
-                        break_out = True
-                        break  # must tear down empty fans now
+                    break_out = True
+                    break  # must tear down empty fans now
             if break_out:
                 break
         tableau.teardown_empty_fans()
     return function_success
+
 
 def run_automatic_actions(tableau, foundation, move_stack) -> None:
     """
@@ -91,7 +87,7 @@ def recursive_hypothetical(tableau, foundation, move_stack, merci=False, reclvl=
     # Recursive case: find the sequence of moves following on from this one.
     best_foundation = 0
     best_state = None
-    for card, target_fan_index, is_merci in legal_moves:
+    for move in legal_moves:
         # Take a copy of the tableau and foundation.
         t = deepcopy(tableau)
         f = deepcopy(foundation)
@@ -99,22 +95,21 @@ def recursive_hypothetical(tableau, foundation, move_stack, merci=False, reclvl=
 
         # For each candidate move, make the move and run any follow-on
         # automatic actions.
-        cur_fan = t.fan_of(card)
+        cur_fan = t.fan_of(move.card)
         assert cur_fan is not None
-        if target_fan_index == MERCI_TO_FOUNDATION_FAN:
-            ms.append(f"[Merci          ] {card} => foundation")
+
+        if move.target_fan is None:  # If this is a foundation move of a merci...
             merci = False  # only one merci is allowed during the tree
-            cur_fan.pop(card)
-            f.insert(card)
-        else:
-            if is_merci:
-                ms.append(f"[Merci          ] {card} => {tableau.fan(target_fan_index)}")
+            cur_fan.pop(move.card)
+            f.insert(move.card)
+        else:                        # Otherwise this is a tableau move...
+            if move.is_merci:
                 merci = False  # only one merci is allowed during the tree
             else:
-                assert cur_fan.top() == card  # the card is on top, or it wouldn't be a legal move
-                ms.append(f"[Blocking move  ] {card} => {tableau.fan(target_fan_index)}")
-            cur_fan.pop(card)
-            t.fan(target_fan_index).push(card)
+                assert cur_fan.top() == move.card  # the card is on top, or it wouldn't be a legal non-merci
+            cur_fan.pop(move.card)
+            t.fan(move.target_fan_index).push(move.card)
+        ms.append(move)
         run_automatic_actions(t, f, ms)
 
         # Recurse into child states, recording the best state of any
@@ -153,7 +148,7 @@ def play_deal(tableau, found, deal, merci=False):
     # the final foundation move are pointless.
     last_foundation = -1
     for idx, move in enumerate(move_stack):
-        if move.startswith("[Foundation"):
+        if move.is_foundation_move:
             last_foundation = idx
 
     print("")
@@ -166,7 +161,7 @@ def play_deal(tableau, found, deal, merci=False):
         print("")
         print("Moves:")
         for move in move_stack[:last_foundation+1]:
-            print("  " + move)
+            print("  " + str(move))
         if last_foundation + 1 < len(move_stack):
             print(f"  ({len(move_stack) - last_foundation - 1} further move(s) omitted "
                   f"because they do not enable any further foundation moves)")

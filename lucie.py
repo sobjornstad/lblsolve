@@ -1,3 +1,5 @@
+from copy import deepcopy
+from itertools import zip_longest
 from typing import Dict, List, Iterable, Iterator, Optional
 
 from card import Card, Deck
@@ -35,6 +37,11 @@ class Fan:
         """
         assert len(cards) <= 3, "No more than three cards may be dealt into a fan."
         self.cards = cards
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Fan):
+            return NotImplemented
+        return all(i == j for i, j in zip_longest(self.cards, other.cards))
 
     def __iter__(self) -> Iterator[Card]:
         for i in self.cards:
@@ -254,16 +261,49 @@ class Tableau:
         for card in self.movable_cards():
             for idx, target_fan in enumerate(self.fans):
                 if target_fan.can_push(card):
-                    legal_moves.append((card, idx, False))
+                    legal_moves.append(Move(card, target_fan, idx))
 
         if merci:
             assert foundation is not None  # only required for merci moves
             for card in self.immovable_cards():
                 if foundation.can_insert(card):
-                    legal_moves.append((card, MERCI_TO_FOUNDATION_FAN, True))
+                    legal_moves.append(Move(card, is_merci=True))
 
                 for idx, target_fan in enumerate(self.fans):
                     if target_fan.can_push(card):
-                        legal_moves.append((card, idx, True))
+                        legal_moves.append(Move(card, target_fan, idx, is_merci=True))
 
         return legal_moves
+
+
+class Move:
+    def __init__(self,
+                 card: Card,
+                 target_fan: Optional[Fan] = None,
+                 target_fan_index: Optional[int] = None,
+                 is_merci: bool = False,
+                 is_safe: bool = False) -> None:
+        self.card = card
+        if target_fan is not None:  # None = foundation move
+            self.target_fan = deepcopy(target_fan)
+        else:
+            self.target_fan = None
+        self.target_fan_index = target_fan_index
+        self.is_merci = is_merci
+        self.is_safe = is_safe
+
+    @property
+    def is_foundation_move(self):
+        return self.target_fan is None
+
+    def __str__(self) -> str:
+        if self.is_merci and self.is_foundation_move:
+            return f"[Merci          ] {self.card} => foundation"
+        elif self.is_merci:
+            return f"[Merci          ] {self.card} => {self.target_fan}"
+        elif self.is_foundation_move:
+            return f"[Foundation move] {self.card}"
+        elif self.is_safe:
+            return f"[Safe build     ] {self.card} => {self.target_fan}"
+        else:
+            return f"[Blocking move  ] {self.card} => {self.target_fan}"
