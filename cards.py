@@ -52,4 +52,5 @@ def play_game():
     print("Unfortunately, this game was not solvable.")
 
 
-play_game()
+if __name__ == '__main__':
+    play_game()
