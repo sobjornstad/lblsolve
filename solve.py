@@ -1,7 +1,9 @@
 from copy import deepcopy
+from multiprocessing import Process, Queue, Value
+from operator import itemgetter
 from typing import List
 
-from lucie import Tableau, Foundations, MERCI_TO_FOUNDATION_FAN, Move
+from lucie import Tableau, Foundations, Move
 
 
 def move_players(tableau: Tableau, found: Foundations, move_stack: List) -> bool:
@@ -65,7 +67,15 @@ def maximize_state(cur_best_foundation, new_foundation, cur_best_state, new_stat
         return cur_best_foundation, cur_best_state
 
 
-def try_legal_move(tableau, foundation, move_stack, merci, move, reclvl, best_foundation, best_state):
+def try_legal_move(tableau, foundation, move_stack, merci, move, reclvl, best_foundation, best_state, num_moves, q = None):
+    """
+    Attempt to make one blocking move and following series of automatic moves.
+    Mutually recursive with recursive_hypothetical().
+    """
+    if num_moves.value == 0 or not num_moves.value % 100:
+        print(f"\r  Searched {num_moves.value} legal permutations...", end='')
+    num_moves.value += 1
+
     cur_fan = tableau.fan_of(move.card)
     assert cur_fan is not None
 
@@ -80,11 +90,16 @@ def try_legal_move(tableau, foundation, move_stack, merci, move, reclvl, best_fo
 
     # Recurse into child states, recording the best state of any child.
     #print(" " * 2 * reclvl + f"Foundation size after this move: {len(foundation)}")
-    child_foundation, child_state = recursive_hypothetical(tableau, foundation, move_stack, merci, reclvl+1)
-    return maximize_state(best_foundation, child_foundation, best_state, child_state)
+    child_foundation, child_state = recursive_hypothetical(tableau, foundation, move_stack, merci, num_moves, reclvl+1)
+    best_state = maximize_state(best_foundation, child_foundation, best_state, child_state)
+
+    if q is not None:
+        q.put(best_state)
+    else:
+        return best_state
 
 
-def recursive_hypothetical(tableau, foundation, move_stack, merci=False, reclvl=0):
+def recursive_hypothetical(tableau, foundation, move_stack, merci=False, num_moves=None, reclvl=0):
     """
     Perform a complete tree search for the best possible series of blocking
     moves. Between each blocking move, all automatic moves are applied. The
@@ -93,11 +108,6 @@ def recursive_hypothetical(tableau, foundation, move_stack, merci=False, reclvl=
     foundation. (Nothing else matters because we reshuffle the tableau once
     we reach that end state anyway.)
     """
-    global tot_searches
-    if tot_searches == 0 or not tot_searches % 100:
-        print(f"\rDFS for best blocking moves: {tot_searches} legal permutations...", end='')
-    tot_searches += 1
-
     if merci:
         legal_moves = tableau.moves(merci, foundation)
     else:
@@ -113,23 +123,38 @@ def recursive_hypothetical(tableau, foundation, move_stack, merci=False, reclvl=
     # Recursive case: find the sequence of moves following on from this one.
     best_foundation = 0
     best_state = None
+    states = []
+    processes = []
+    q = Queue()
+
     for move in legal_moves:
         # Take a copy of the tableau and foundation.
         t = deepcopy(tableau)
         f = deepcopy(foundation)
         ms = deepcopy(move_stack)
 
-        child_foundation, child_state = try_legal_move(t, f, ms, merci, move, reclvl, best_foundation, best_state)
-        best_foundation, best_state = maximize_state(best_foundation, child_foundation,
-                                                     best_state, child_state)
+        my_args = [t, f, ms, merci, move, reclvl, best_foundation, best_state, num_moves]
+        if reclvl == 0:
+            my_args.append(q)
+            p = Process(target=try_legal_move, args=my_args)
+            processes.append(p)
+        else:
+            states.append(try_legal_move(*my_args))
 
-    #print(" " * 2 * reclvl + f"Return foundation size {best_foundation}")
-    return best_foundation, best_state
+    if reclvl == 0:
+        print(f"DFS for best blocking moves using {len(processes)} thread(s):")
+        for p in processes:
+            p.start()
+        for p in processes:
+            states.append(q.get())
+
+    # Select the best state of any child move.
+    return sorted(states, key=itemgetter(0))[-1]
 
 
 def play_deal(tableau, found, deal, merci=False):
     print("")
-    print(f"Starting tableau for deal {deal}:")
+    print(f"=== Starting tableau for deal {deal} ===")
     print(tableau)
     print("")
     orig_tableau_length = len(tableau)
@@ -140,12 +165,17 @@ def play_deal(tableau, found, deal, merci=False):
 
     move_stack = []
     run_automatic_actions(tableau, found, move_stack)
-    _, state = recursive_hypothetical(tableau, found, move_stack, merci)
-    print(f"\rDFS for best blocking moves: {tot_searches} legal permutations...", end='')
-    if state is None:
-        pass  # there were no legal moves at all
+
+    if len(found) == 52:
+        print("The deal was solved by automatic moves.")
     else:
-        tableau, found, move_stack = state
+        num_moves = Value('i', 0)
+        _, state = recursive_hypothetical(tableau, found, move_stack, merci, num_moves)
+        print(f"\r  Found {num_moves.value} total legal permutation(s).   ", end='')
+        if state is None:
+            pass  # there were no legal moves at all
+        else:
+            tableau, found, move_stack = state
     
     # Figure out where to stop listing moves, seeing as any moves after
     # the final foundation move are pointless.

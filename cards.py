@@ -4,7 +4,7 @@ import sys
 
 from card import Card, Deck
 from instrument import Stopwatch
-from lucie import Fan, Foundations, Tableau, MERCI_TO_FOUNDATION_FAN
+from lucie import Fan, Foundations, Tableau
 from solve import play_deal
 
 

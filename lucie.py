@@ -2,10 +2,8 @@ from copy import deepcopy
 from itertools import zip_longest
 from typing import Dict, List, Iterable, Iterator, Optional
 
-from card import Card, Deck
+from card import Card, Deck, SUIT_GLYPHS
 
-
-MERCI_TO_FOUNDATION_FAN = -1
 
 
 class Fan:
@@ -145,7 +143,7 @@ class Foundations:
     def __repr__(self) -> str:
         result = []
         for k, v in self.founds.items():
-            result.append(f"[{k}] " + (" ".join(repr(i) for i in v)))
+            result.append(f"[{SUIT_GLYPHS[k]}] " + (" ".join(repr(i) for i in v)))
         return '\n'.join(result)
 
     def __len__(self) -> int:
