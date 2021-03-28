@@ -80,7 +80,7 @@ def recursive_hypothetical(tableau, foundation, move_stack, merci=False, reclvl=
     # Base case: There are no legal moves in this state. This can happen either
     # because we are blocked or because we have won. Return the number of
     # cards on the foundation.
-    if not legal_moves or not tableau:
+    if not legal_moves:
         #print(" " * 2 * reclvl + f"No legal moves at level {reclvl}.")
         return len(foundation), (tableau, foundation, move_stack)
 
