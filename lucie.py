@@ -307,3 +307,12 @@ class Move:
             return f"[Safe build     ] {self.card} => {self.target_fan}"
         else:
             return f"[Blocking move  ] {self.card} => {self.target_fan}"
+
+    def apply(self, tableau: Tableau, foundation: Foundations) -> None:
+        """
+        Perform the move identified in the stack on the given tableau and foundation.
+        """
+        if self.is_foundation_move:
+            foundation.insert(self.card)
+        else:
+            tableau.fan(self.target_fan_index).push(self.card)

@@ -58,6 +58,32 @@ def run_automatic_actions(tableau, foundation, move_stack) -> None:
         pass
 
 
+def maximize_state(cur_best_foundation, new_foundation, cur_best_state, new_state):
+    if new_foundation > cur_best_foundation:
+        return new_foundation, new_state
+    else:
+        return cur_best_foundation, cur_best_state
+
+
+def try_legal_move(tableau, foundation, move_stack, merci, move, reclvl, best_foundation, best_state):
+    cur_fan = tableau.fan_of(move.card)
+    assert cur_fan is not None
+
+    # Move cards as appropriate, and unset merci for future moves if we did a merci.
+    cur_fan.pop(move.card)
+    move_stack.append(move)
+    move.apply(tableau, foundation)
+    merci = merci and not move.is_merci
+
+    # Proceed as far as we can with automatic actions.
+    run_automatic_actions(tableau, foundation, move_stack)
+
+    # Recurse into child states, recording the best state of any child.
+    #print(" " * 2 * reclvl + f"Foundation size after this move: {len(foundation)}")
+    child_foundation, child_state = recursive_hypothetical(tableau, foundation, move_stack, merci, reclvl+1)
+    return maximize_state(best_foundation, child_foundation, best_state, child_state)
+
+
 def recursive_hypothetical(tableau, foundation, move_stack, merci=False, reclvl=0):
     """
     Perform a complete tree search for the best possible series of blocking
@@ -93,32 +119,9 @@ def recursive_hypothetical(tableau, foundation, move_stack, merci=False, reclvl=
         f = deepcopy(foundation)
         ms = deepcopy(move_stack)
 
-        # For each candidate move, make the move and run any follow-on
-        # automatic actions.
-        cur_fan = t.fan_of(move.card)
-        assert cur_fan is not None
-
-        if move.target_fan is None:  # If this is a foundation move of a merci...
-            merci = False  # only one merci is allowed during the tree
-            cur_fan.pop(move.card)
-            f.insert(move.card)
-        else:                        # Otherwise this is a tableau move...
-            if move.is_merci:
-                merci = False  # only one merci is allowed during the tree
-            else:
-                assert cur_fan.top() == move.card  # the card is on top, or it wouldn't be a legal non-merci
-            cur_fan.pop(move.card)
-            t.fan(move.target_fan_index).push(move.card)
-        ms.append(move)
-        run_automatic_actions(t, f, ms)
-
-        # Recurse into child states, recording the best state of any
-        # of this state's children.
-        #print(" " * 2 * reclvl + f"Foundation size after this move: {len(foundation)}")
-        child_foundation, child_state = recursive_hypothetical(t, f, ms, merci, reclvl+1)
-        if child_foundation > best_foundation:
-            best_foundation = child_foundation
-            best_state = child_state
+        child_foundation, child_state = try_legal_move(t, f, ms, merci, move, reclvl, best_foundation, best_state)
+        best_foundation, best_state = maximize_state(best_foundation, child_foundation,
+                                                     best_state, child_state)
 
     #print(" " * 2 * reclvl + f"Return foundation size {best_foundation}")
     return best_foundation, best_state
