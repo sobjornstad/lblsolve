@@ -154,7 +154,8 @@ def recursive_hypothetical(tableau, foundation, move_stack, merci=False, num_mov
 
 def play_deal(tableau, found, deal, merci=False):
     print("")
-    print(f"=== Starting tableau for deal {deal} ===")
+    print(f"========== Deal {deal} ==========")
+    print("Starting tableau:")
     print(tableau)
     print("")
     orig_tableau_length = len(tableau)
@@ -192,11 +193,12 @@ def play_deal(tableau, found, deal, merci=False):
               f"transferring {orig_tableau_length - len(tableau)} cards to the foundation "
               f"and leaving {len(tableau)} on the tableau.")
         print("")
-        print("Moves:")
+        print("Move sequence:")
         for move in move_stack[:last_foundation+1]:
             print("  " + str(move))
         if last_foundation + 1 < len(move_stack):
-            print(f"  ({len(move_stack) - last_foundation - 1} further move(s) omitted "
+            print(f"  ({len(move_stack) - last_foundation - 1} further legal "
+                  f"move(s) omitted "
                   f"because they do not enable any further foundation moves)")
 
     print("")
