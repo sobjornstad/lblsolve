@@ -194,7 +194,8 @@ def play_deal(tableau, found, deal, merci=False):
               f"and leaving {len(tableau)} on the tableau.")
         print("")
         print("Move sequence:")
-        for move in move_stack[:last_foundation+1]:
+        #for move in move_stack[:last_foundation+1]:
+        for move in move_stack:
             print("  " + str(move))
         if last_foundation + 1 < len(move_stack):
             print(f"  ({len(move_stack) - last_foundation - 1} further legal "
