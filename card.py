@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import collections
 import random
+import re
 from typing import Deque, Iterable, Iterator, Optional
 
 SUITS = ('C', 'D', 'H', 'S')
 NUMS = list(range(1,14))
 NAMES = ['A'] + [str(i) for i in range(2, 11)] + ['J', 'Q', 'K']
 SUIT_GLYPHS = {'C': '♣', 'D': '♦', 'H': '♥', 'S': '♠'}
+SUIT_LETTERS = {v: k for k, v in SUIT_GLYPHS.items()}
 
 
 class Card:
@@ -28,6 +30,27 @@ class Card:
 
     def __repr__(self) -> str:
         return f"{self.name}{self.suit_glyph}"
+
+    @classmethod
+    def from_text(cls, text: str) -> Optional[Card]:
+        """
+        Given a card string such as "10S", return a Card, or None if the string
+        doesn't match the required format.
+        """
+        num = text[:-1]
+        suit = text[-1]
+
+        if suit.upper() in SUIT_LETTERS:
+            clean_suit = SUIT_LETTERS[suit.upper()]
+        else:
+            clean_suit = suit.upper()
+
+        clean_num = NUMS[NAMES.index(num)]
+
+        if clean_suit not in SUITS or clean_num not in NUMS:
+            return None
+        else:
+            return cls(clean_num, clean_suit)
 
     @property
     def name(self) -> str:

@@ -1,6 +1,8 @@
 #!/usr/bin/python3
 
+import re
 import sys
+from typing import NoReturn
 
 import argparse
 
@@ -11,15 +13,37 @@ from solve import play_deal
 
 
 
-def check_won(foundation, deals, watch) -> None:
-    if len(foundation) == 52:
+def check_won(tableau: Tableau, deals: int, watch: Stopwatch) -> None:
+    if not tableau:
         print("")
         watch.checkpoint()
-        print(f"Game solved in {watch.running_time * 1000:.2f}ms using {deals} deal(s).")
+        print(f"Game solved in {watch.running_time * 1000:.2f}ms on deal {deals}.")
         sys.exit(0)
 
 
-def play_game(args, deck):
+def parse_position() -> Deck:
+    cards = []
+    for line in sys.stdin:
+        for card_text in re.finditer("(?:[0-9]{1,2}|[AKQJ])[cCdDhHsS♣♦♥♠]", line):
+            print("Read: ", card_text)
+            # TODO: Better error checking in from_text
+            card = Card.from_text(card_text.group(0))
+            if card is None:
+                # TODO: This should happen if nonsense was found on the line, too
+                sys.stderr.write("Oops! That doesn't appear to be a valid format.\n")
+                sys.stderr.write("Enter 'A', 'J', 'Q', 'K', or 2-10, plus a suit ")
+                sys.stderr.write("(C, D, H, or S, or the filled Unicode glyphs)\n")
+                sys.stderr.write("for each card. Three cards (one fan) per line, ")
+                sys.stderr.write("separated by spaces.\n")
+                sys.exit(255)
+            cards.append(card)
+
+    deck = Deck()
+    deck.add_many(cards)
+    return deck
+
+
+def play_game(args, deck: Deck) -> NoReturn:
     tableau = Tableau()
     found = Foundations()
     watch = Stopwatch()
@@ -35,11 +59,11 @@ def play_game(args, deck):
             deck.add_many(tableau.gather())
         tableau.deal(deck)
 
-        if deal_num == args.max_deal and args.merci:
+        if args.merci and (deal_num == args.max_deal or not args.redeal):
             tableau, found = play_deal(tableau, found, deal_num, merci=True)
         else:
             tableau, found = play_deal(tableau, found, deal_num)
-        check_won(found, deal_num, watch)
+        check_won(tableau, deal_num, watch)
 
     print("")
     watch.checkpoint()
@@ -71,10 +95,9 @@ if __name__ == '__main__':
         deck.fill()
         deck.shuffle()
     else:
-        raise NotImplementedError("Not implemented, dummy")
+        deck = parse_position()
 
     play_game(args, deck)
 
 
-# TODO: Allow user to input stuff
 # TODO: Is there a way to early break when it finds a complete solution? Not really any reason to continue searching at that point.
