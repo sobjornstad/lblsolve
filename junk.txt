@@ -1,0 +1,12 @@
+
+        if reclvl == 0:
+            my_args = (t, f, ms, merci, move, reclvl, best_foundation, best_state)
+            p = Process(target=try_legal_move, args=my_args)
+            processes.append(p)
+            p.start()
+        else:
+            best_foundation, best_state = try_legal_move(*args)
+    
+    if reclvl == 0:
+        for p in processes:
+            p.join()

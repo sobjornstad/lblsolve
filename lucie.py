@@ -113,6 +113,12 @@ class Fan:
         Because safe builds will never make the situation worse, a human or
         computer solver may evaluate and perform all safe builds after every
         potential blocking move, along with all foundation builds.
+
+        This method uses a conservative definition of "safe build": there are
+        some edge cases where moves not defined here can be safe. This is of
+        little consequence for this method's intended use -- quickly making
+        moves that are known to be an improvement -- as the complete DFS will
+        catch any safe moves that are needed to make progress, just more slowly.
         """
         if not self.can_push(card):
             # We can't safely build if we can't build at all.

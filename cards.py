@@ -2,7 +2,7 @@
 
 import re
 import sys
-from typing import NoReturn
+from typing import NoReturn, Optional
 
 import argparse
 
@@ -43,21 +43,34 @@ def parse_position() -> Deck:
     return deck
 
 
-def play_game(args, deck: Deck) -> NoReturn:
-    tableau = Tableau()
-    found = Foundations()
+def play_game(args, deck: Optional[Deck], tableau: Optional[Tableau] = None,
+             found: Optional[Foundations] = None) -> NoReturn:
+    """
+    Play a game of LBS, beginning from either a shuffled /deck/
+    or an initial position with a /tableau/ and a /found/ation.
+    """
+    assert deck is not None or (tableau is not None and found is not None)
+
     watch = Stopwatch()
+    if deck is not None:
+        tableau = Tableau()
+        found = Foundations()
+        tableau.deal(deck)
 
     if not args.redeal:
         iterator = range(args.deal, args.deal+1)
     else:
         iterator = range(args.deal, args.max_deal+1)
 
+    first_managed_deal = True
     for deal_num in iterator:
-        assert deck or tableau, "Either the deck or the tableau must contain cards."
-        if not deck:
+        if not first_managed_deal:
+            # If this isn't the first deal the solver has worked on,
+            # it should gather, shuffle, and redeal the tableau.
             deck.add_many(tableau.gather())
-        tableau.deal(deck)
+            deck.shuffle()
+            tableau.deal(deck)
+        first_managed_deal = False
 
         if args.merci and (deal_num == args.max_deal or not args.redeal):
             tableau, found = play_deal(tableau, found, deal_num, merci=True)
@@ -95,6 +108,8 @@ if __name__ == '__main__':
         deck.fill()
         deck.shuffle()
     else:
+        #TODO: This isn't going to work for a mid-game position:
+        # we should parse to a tableau rather than to a deck.
         deck = parse_position()
 
     play_game(args, deck)
