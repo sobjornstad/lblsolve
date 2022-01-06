@@ -28,6 +28,11 @@ class Card:
             return NotImplemented
         return self._suit == other._suit and self._num == other._num
 
+    def __hash__(self) -> int:
+        # assert: unique and small across all suit/num combinations
+        # ords: C = 67, D = 68, H = 72, S = 83
+        return ord(self._suit) + self._num
+
     def __repr__(self) -> str:
         return f"{self.name}{self.suit_glyph}"
 
@@ -45,7 +50,7 @@ class Card:
         else:
             clean_suit = suit.upper()
 
-        clean_num = NUMS[NAMES.index(num)]
+        clean_num = NUMS[NAMES.index(num.upper())]
 
         if clean_suit not in SUITS or clean_num not in NUMS:
             return None

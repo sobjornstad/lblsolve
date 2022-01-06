@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 from copy import deepcopy
 from itertools import zip_longest
-from typing import Dict, List, Iterable, Iterator, Optional
+from typing import Dict, List, Iterable, Iterator, Optional, Sequence
 
 from card import Card, Deck, SUIT_GLYPHS
 
@@ -27,14 +29,15 @@ class Fan:
     removing cards and delete their references to the fan if it has become
     empty.
     """
-    def __init__(self, cards: List[Card]) -> None:
+    def __init__(self, cards: Sequence[Card]) -> None:
         """
-        Deal a new fan from a list of cards. No more than three cards may be
-        dealt into a fan, so an AssertionError is raised if more are provided
-        to the constructor.
+        Populate a new fan from a sequence of cards.
+
+        This constructor makes its own copy of the cards list, so the sequence
+        can be mutated later by the caller if it so chooses.
         """
-        assert len(cards) <= 3, "No more than three cards may be dealt into a fan."
-        self.cards = cards
+        self.cards = []
+        self.cards.extend(cards)
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, Fan):
@@ -154,6 +157,22 @@ class Foundations:
 
     def __len__(self) -> int:
         return sum(len(v) for v in self.founds.values())
+
+    @classmethod
+    def infer(cls, tableau: Tableau) -> Foundations:
+        """
+        Create a Foundations object containing all cards that are *not* in the
+        provided tableau.
+        """
+        found = cls()
+        tableau_cards = [c for fan in tableau.fans for c in fan]
+        deck = Deck()
+        deck.fill()
+
+        for c in deck:
+            if c not in tableau_cards:
+                found.insert(c)
+        return found
 
     def can_insert(self, card: Card) -> bool:
         """

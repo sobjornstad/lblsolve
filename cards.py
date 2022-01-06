@@ -22,28 +22,55 @@ def check_won(tableau: Tableau, deals: int, watch: Stopwatch) -> None:
 
 
 def parse_position() -> Deck:
-    cards = []
+    fans = []
+    help_msg = ("La Belle Lucie solver\n"
+                "Copyright (c) 2022 Soren Bjornstad.\n"
+                "Use the --help switch for full command-line options.\n\n"
+                "Awaiting the tableau to solve on standard input.\n"
+                "Cards look like '5H', where 5 is the number of the card "
+                "or 'A', 'J', 'Q', or 'K', \n"
+                "and H the suit of the card, 'C', 'D', 'H', or 'S' "
+                "(lowercase letters or Unicode suit glyphs also accepted).\n"
+                "Enter horizontal whitespace between cards of a fan "
+                "and Return between fans.\n"
+                "To finish entering fans, press ^D. "
+                "The foundations will consist of any cards not on your tableau.\n\n")
+    if sys.stdin.isatty():
+        sys.stderr.write(help_msg)
+
     for line in sys.stdin:
-        for card_text in re.finditer("(?:[0-9]{1,2}|[AKQJ])[cCdDhHsS♣♦♥♠]", line):
-            print("Read: ", card_text)
+        fan_cards = []
+        for card_text in re.finditer("(?:[0-9]{1,2}|[AKQJakqj])[cCdDhHsS♣♦♥♠]", line):
             # TODO: Better error checking in from_text
             card = Card.from_text(card_text.group(0))
             if card is None:
                 # TODO: This should happen if nonsense was found on the line, too
-                sys.stderr.write("Oops! That doesn't appear to be a valid format.\n")
-                sys.stderr.write("Enter 'A', 'J', 'Q', 'K', or 2-10, plus a suit ")
-                sys.stderr.write("(C, D, H, or S, or the filled Unicode glyphs)\n")
-                sys.stderr.write("for each card. Three cards (one fan) per line, ")
-                sys.stderr.write("separated by spaces.\n")
+                sys.stderr.write("Oops! That doesn't appear to be a valid card.")
                 sys.exit(255)
-            cards.append(card)
+            fan_cards.append(card)
 
-    deck = Deck()
-    deck.add_many(cards)
-    return deck
+        fan = Fan(fan_cards)
+        fans.append(fan)
+        fan_cards.clear()
+        print(f"[Read fan {len(fans)-1:2d}]", fan)
 
 
-def play_game(args, deck: Optional[Deck], tableau: Optional[Tableau] = None,
+    tableau = Tableau()
+    tableau.fans.extend(fans)
+    all_cards = [c for fan in tableau.fans for c in fan]
+
+    if not all_cards:
+        print("No cards were entered on the tableau. Exiting.")
+        sys.exit(255)
+    assert len(all_cards) == len(set(all_cards)), \
+        "There appear to be duplicate cards in this tableau. Please check the tableau."
+
+    found = Foundations.infer(tableau)
+
+    return tableau, found
+
+
+def play_game(args, deck: Optional[Deck] = None, tableau: Optional[Tableau] = None,
              found: Optional[Foundations] = None) -> NoReturn:
     """
     Play a game of LBS, beginning from either a shuffled /deck/
@@ -110,9 +137,9 @@ if __name__ == '__main__':
     else:
         #TODO: This isn't going to work for a mid-game position:
         # we should parse to a tableau rather than to a deck.
-        deck = parse_position()
+        tableau, found = parse_position()
 
-    play_game(args, deck)
+    play_game(args, tableau=tableau, found=found)
 
 
 # TODO: Is there a way to early break when it finds a complete solution? Not really any reason to continue searching at that point.

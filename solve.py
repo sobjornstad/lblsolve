@@ -172,7 +172,8 @@ def play_deal(tableau, found, deal, merci=False):
     else:
         num_moves = Value('i', 0)
         _, state = recursive_hypothetical(tableau, found, move_stack, merci, num_moves)
-        print(f"\r  Found {num_moves.value} total legal permutation(s).   ", end='')
+        print(f"\r  Found {num_moves.value} total legal permutation(s) "
+              f"of blocking moves.   ", end='')
         if state is None:
             pass  # there were no legal moves at all
         else:
@@ -186,7 +187,7 @@ def play_deal(tableau, found, deal, merci=False):
             last_foundation = idx
 
     print("")
-    if not move_stack:
+    if not move_stack[:last_foundation+1]:
         print("Darn! No legal moves from this position would allow a foundation move.")
     else:
         print(f"Best sequence has {last_foundation+1} moves, "
@@ -194,8 +195,7 @@ def play_deal(tableau, found, deal, merci=False):
               f"and leaving {len(tableau)} on the tableau.")
         print("")
         print("Move sequence:")
-        #for move in move_stack[:last_foundation+1]:
-        for move in move_stack:
+        for move in move_stack[:last_foundation+1]:
             print("  " + str(move))
         if last_foundation + 1 < len(move_stack):
             print(f"  ({len(move_stack) - last_foundation - 1} further legal "
