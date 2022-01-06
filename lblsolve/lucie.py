@@ -4,7 +4,7 @@ from copy import deepcopy
 from itertools import zip_longest
 from typing import Dict, List, Iterable, Iterator, Optional, Sequence
 
-from card import Card, Deck, SUIT_GLYPHS
+from .card import Card, Deck, SUIT_GLYPHS
 
 
 

@@ -3,7 +3,7 @@ from multiprocessing import Process, Queue, Value
 from operator import itemgetter
 from typing import List
 
-from lucie import Tableau, Foundations, Move
+from .lucie import Tableau, Foundations, Move
 
 
 def move_players(tableau: Tableau, found: Foundations, move_stack: List) -> bool:
@@ -159,6 +159,10 @@ def play_deal(tableau, found, deal, merci=False):
     print(tableau)
     print("")
     orig_tableau_length = len(tableau)
+    if found:
+        print("Starting foundation:")
+        print(found)
+        print("")
 
     # search progress indicator
     global tot_searches

@@ -6,10 +6,10 @@ from typing import NoReturn, Optional
 
 import argparse
 
-from card import Card, Deck
-from instrument import Stopwatch
-from lucie import Fan, Foundations, Tableau
-from solve import play_deal
+from .card import Card, Deck
+from .instrument import Stopwatch
+from .lucie import Fan, Foundations, Tableau
+from .solve import play_deal
 
 
 
@@ -112,7 +112,7 @@ def play_game(args, deck: Optional[Deck] = None, tableau: Optional[Tableau] = No
     sys.exit(1)
 
 
-if __name__ == '__main__':
+def main() -> NoReturn:
     parser = argparse.ArgumentParser(
         description='Solve La Belle Lucie solitaire games.')
     parser.add_argument("--deal", metavar='N', type=int, default=1,
@@ -134,12 +134,15 @@ if __name__ == '__main__':
     if args.shuffle:
         deck.fill()
         deck.shuffle()
+        play_game(args, deck)
     else:
         #TODO: This isn't going to work for a mid-game position:
         # we should parse to a tableau rather than to a deck.
         tableau, found = parse_position()
+        play_game(args, tableau=tableau, found=found)
 
-    play_game(args, tableau=tableau, found=found)
 
+if __name__ == '__main__':
+    main()
 
 # TODO: Is there a way to early break when it finds a complete solution? Not really any reason to continue searching at that point.
