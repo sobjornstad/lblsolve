@@ -164,10 +164,6 @@ def play_deal(tableau, found, deal, merci=False):
         print(found)
         print("")
 
-    # search progress indicator
-    global tot_searches
-    tot_searches = 0
-
     move_stack = []
     run_automatic_actions(tableau, found, move_stack)
 
