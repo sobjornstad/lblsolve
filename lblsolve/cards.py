@@ -83,6 +83,9 @@ def play_game(args, deck: Optional[Deck] = None, tableau: Optional[Tableau] = No
         tableau = Tableau()
         found = Foundations()
         tableau.deal(deck)
+    else:
+        # Leave deck empty, we'll fill it when redealing.
+        deck = Deck()
 
     if not args.redeal:
         iterator = range(args.deal, args.deal+1)
