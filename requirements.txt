@@ -1,1 +1,4 @@
 -e .
+
+wheel
+twine

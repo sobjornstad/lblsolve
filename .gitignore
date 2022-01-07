@@ -2,3 +2,4 @@ __pycache__/
 wiki-images/
 venv/
 *.egg-info/
+dist/

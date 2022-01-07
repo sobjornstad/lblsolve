@@ -4,12 +4,11 @@ setup.py -  setuptools configuration for esc
 
 import setuptools
 
-long_description = "my description"
-#with open("README.md", "r") as fh:
-#    long_description = fh.read()
+with open("README.md", "r") as fh:
+    long_description = fh.read()
 
 setuptools.setup(
-    name="lbltools",
+    name="lblsolve",
     version="0.1.0",
     author="Soren I. Bjornstad",
     author_email="contact@sorenbjornstad.com",
@@ -20,11 +19,8 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",
-        "License :: OSI Approved :: MIT",
+        "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
-    ],
-    install_requires=[
-        'windows-curses; platform_system == "Windows"',
     ],
     entry_points={
         "console_scripts": [
