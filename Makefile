@@ -11,7 +11,7 @@ publish_test: dist/
 	twine upload --repository-url https://test.pypi.org/legacy/ dist/*
 
 publish_prod: dist/
-	twine upload --repository-url https://pypi.org/legacy/ dist/*
+	twine upload --repository-url https://upload.pypi.org/legacy/ dist/*
 
 clean:
 	rm -rf dist
