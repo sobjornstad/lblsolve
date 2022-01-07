@@ -1,0 +1,22 @@
+name: Makefile CI
+
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Build package
+      run: make
+      
+    - name: Publish package
+      run: make publish_prod
+      env: 
+        TWINE_USERNAME: sobjornstad
+        TWINE_PASSWORD: ${{ secrets.pypi_api_key }}
