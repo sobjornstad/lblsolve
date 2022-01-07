@@ -1,7 +1,9 @@
 all: pypi
 
 pypi: lblsolve/*.py requirements.txt README.md setup.py
+	[ -d venv ] || python -m venv venv
 	. venv/bin/activate
+	pip install -r requirements.txt --upgrade
 	rm -rf dist/
 	python setup.py sdist bdist_wheel
 
